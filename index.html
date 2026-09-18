@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-black text-amber-500 select-none overflow-hidden">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KC MusicPlayer - Terminal LCARS de la Flota Estelar</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for authentic LCARS Styling -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        lcars: {
+                            orange: '#ff9900',
+                            amber: '#ffcc00',
+                            purple: '#cc99cc',
+                            blue: '#9999ff',
+                            red: '#cc0000',
+                            redbright: '#ff0000',
+                            peach: '#ff9966',
+                            pink: '#cc6699',
+                            darkred: '#220000',
+                            panel: '#0c0c12'
+                        }
+                    },
+                    fontFamily: {
+                        lcars: ['Antonio', 'sans-serif'],
+                        mono: ['Share Tech Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Antonio', sans-serif;
+            letter-spacing: 1.2px;
+            background-color: #000000;
+        }
+
+        /* Botones estilo píldora LCARS */
+        .lcars-btn {
+            border-radius: 20px;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .lcars-btn:hover {
+            filter: brightness(1.3);
+            box-shadow: 0 0 12px currentColor;
+        }
+
+        .lcars-btn:active {
+            transform: scale(0.96);
+            filter: brightness(0.85);
+        }
+
+        .lcars-btn.active {
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.8), 0 0 12px currentColor;
+            border: 2px solid #ffffff;
+        }
+
+        /* Personalización de barra de desplazamiento */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ff9900;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ffcc00;
+        }
+
+        /* Animación de Alerta Roja */
+        @keyframes redAlertPulse {
+            0%, 100% { background-color: rgba(204, 0, 0, 0.15); }
+            50% { background-color: rgba(255, 0, 0, 0.45); }
+        }
+
+        .red-alert-active {
+            animation: redAlertPulse 1.2s infinite ease-in-out;
+        }
+
+        /* Estilos de controles deslizantes */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #222;
+            border-radius: 3px;
+            border: 1px solid #444;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            height: 18px;
+            width: 14px;
+            border-radius: 3px;
+            background: #ff9900;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -6px;
+            box-shadow: 0 0 8px #ff9900;
+        }
+
+        .red-alert-theme input[type=range]::-webkit-slider-thumb {
+            background: #ff0000;
+            box-shadow: 0 0 8px #ff0000;
+        }
+
+        /* Deslizadores verticales para Ecualizador */
+        .slider-vertical {
+            writing-mode: bt-lr;
+            -webkit-appearance: slider-vertical;
+            width: 12px;
+            height: 130px;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col justify-between p-2 md:p-4 bg-black overflow-hidden relative">
+
+    <!-- Superposición de Alerta Roja -->
+    <div id="redAlertOverlay" class="pointer-events-none fixed inset-0 z-50 transition-opacity opacity-0 bg-red-600/20"></div>
+
+    <div id="lcarsContainer" class="flex flex-col h-full w-full max-w-7xl mx-auto border-r-8 border-lcars-orange pr-2 transition-colors duration-500">
+
+        <!-- CABECERA SUPERIOR LCARS -->
+        <header class="flex items-stretch gap-2 mb-2">
+            <!-- Esquina curva superior LCARS -->
+            <div class="hidden sm:flex flex-col items-end">
+                <div id="lcarsTopCorner" class="w-32 h-10 bg-lcars-orange rounded-tl-3xl rounded-bl-sm flex items-center justify-end pr-3 transition-colors duration-500">
+                    <span class="text-black font-bold text-xs tracking-widest">LCARS</span>
+                </div>
+                <div id="lcarsSubBlock1" class="w-8 h-4 bg-lcars-amber self-start ml-2 mt-1 rounded-sm transition-colors duration-500"></div>
+            </div>
+
+            <!-- Barra central con título -->
+            <div class="flex-1 bg-lcars-purple/20 border-b-2 border-lcars-purple flex items-center justify-between px-4 py-1 rounded-sm">
+                <div class="flex items-center gap-3">
+                    <div id="systemIndicator" class="w-3 h-3 rounded-full bg-lcars-amber animate-ping"></div>
+                    <h1 class="text-2xl md:text-3xl font-extrabold tracking-wider text-lcars-amber uppercase">
+                        KC MUSICPLAYER <span class="text-xs text-lcars-blue tracking-widest font-mono ml-2">[SISTEMA TÁCTICO DE AUDIO v5.0]</span>
+                    </h1>
+                </div>
+
+                <div class="flex items-center gap-4 text-xs font-mono text-lcars-blue hidden md:flex">
+                    <div>SUBESPACIO: <span id="subspaceFreq" class="text-lcars-amber">472.903 MHz</span></div>
+                    <div>NÚCLEO AUDIO: <span id="coreStatus" class="text-emerald-400">EN LÍNEA</span></div>
+                    <div>CLASE: <span class="text-lcars-orange">NCC-1701-E</span></div>
+                </div>
+            </div>
+
+            <!-- Botón de Alerta Roja -->
+            <button id="btnRedAlert" class="lcars-btn bg-lcars-red text-black text-sm px-4 py-1 font-bold flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span id="redAlertText">ALERTA ROJA</span>
+            </button>
+        </header>
+
+        <div class="flex-1 flex flex-col md:flex-row gap-3 min-h-0">
+
+            <!-- PANEL DE CONTROL IZQUIERDO -->
+            <aside class="w-full md:w-56 flex flex-col gap-2 shrink-0">
+                <!-- Encabezado de sección -->
+                <div id="lcarsSideHeader" class="bg-lcars-orange text-black p-3 rounded-tl-2xl rounded-tr-md font-extrabold text-sm flex justify-between items-center transition-colors duration-500">
+                    <span>SECTOR 001</span>
+                    <span class="font-mono text-xs">8410.2</span>
+                </div>
+
+                <!-- Lista de botones principales -->
+                <div class="grid grid-cols-2 md:grid-cols-1 gap-2 flex-1">
+                    <button id="btnLoadFiles" class="lcars-btn bg-lcars-amber text-black py-2.5 px-3 text-left justify-between">
+                        <span><i class="fa-solid fa-folder-open mr-2"></i>CARGAR PISTAS</span>
+                        <span class="font-mono text-xs opacity-75">01</span>
+                    </button>
+                    <input type="file" id="fileInput" multiple accept="audio/*" class="hidden">
+
+                    <button id="btnSynthDemo" class="lcars-btn bg-lcars-blue text-black py-2.5 px-3 text-left justify-between">
+                        <span><i class="fa-solid fa-wand-magic-sparkles mr-2"></i>SINTETIZADOR</span>
+                        <span class="font-mono text-xs opacity-75">02</span>
+                    </button>
+
+                    <button id="btnEqToggle" class="lcars-btn bg-lcars-purple text-black py-2.5 px-3 text-left justify-between">
+                        <span><i class="fa-solid fa-sliders mr-2"></i>ECUALIZADOR</span>
+                        <span class="font-mono text-xs opacity-75">03</span>
+                    </button>
+
+                    <button id="btnVisualMode" class="lcars-btn bg-lcars-peach text-black py-2.5 px-3 text-left justify-between">
+                        <span><i class="fa-solid fa-chart-simple mr-2"></i>VISUALIZADOR</span>
+                        <span class="font-mono text-xs opacity-75">04</span>
+                    </button>
+
+                    <!-- Telemetría táctica de audio -->
+                    <div class="hidden md:flex flex-col gap-1 mt-auto bg-black border border-lcars-orange/30 p-2 rounded text-[11px] font-mono text-lcars-orange">
+                        <div class="flex justify-between"><span>MUESTREO:</span><span id="telSampleRate">48.0 kHz</span></div>
+                        <div class="flex justify-between"><span>TASA BITS:</span><span id="telBitrate">320 kbps</span></div>
+                        <div class="flex justify-between"><span>BUFFER DSP:</span><span>512 MUESTRAS</span></div>
+                        <div class="flex justify-between"><span>RANGO FREQ:</span><span>20Hz - 20kHz</span></div>
+                        <div class="flex justify-between"><span>RITMO BPM:</span><span id="telBpm">124 BPM</span></div>
+                    </div>
+                </div>
+
+                <!-- Pie gráfico lateral -->
+                <div id="lcarsSideFooter" class="h-6 bg-lcars-amber rounded-bl-2xl rounded-br-md transition-colors duration-500"></div>
+            </aside>
+
+            <!-- SECCIÓN PRINCIPAL REPRODUCTOR -->
+            <main class="flex-1 flex flex-col gap-3 min-h-0 bg-lcars-panel/90 border border-lcars-orange/30 p-3 rounded-lg relative overflow-hidden">
+
+                <!-- INFORMACIÓN DE PISTA ACTUAL -->
+                <section class="bg-black border-l-4 border-lcars-amber p-3 rounded flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                    <div class="flex-1 overflow-hidden">
+                        <div class="text-xs text-lcars-purple font-mono uppercase tracking-widest flex items-center gap-2">
+                            <span class="inline-block w-2 h-2 rounded-full bg-lcars-orange animate-pulse"></span>
+                            TRANSMITIENDO AHORA:
+                        </div>
+                        <h2 id="trackTitle" class="text-xl md:text-2xl font-bold text-lcars-amber truncate tracking-wide">
+                            SIN ARCHIVO DE AUDIO CARGADO
+                        </h2>
+                        <div id="trackArtist" class="text-sm text-lcars-blue truncate font-mono">
+                            Selecciona archivos MP3/WAV o activa el Sintetizador del Motor
+                        </div>
+                    </div>
+
+                    <!-- Tiempo y Fecha Estelar -->
+                    <div class="flex flex-row md:flex-col items-end gap-2 font-mono text-xs text-right">
+                        <div class="bg-lcars-orange/20 text-lcars-orange px-2 py-1 rounded border border-lcars-orange/40">
+                            FECHA ESTELAR: <span id="stardateVal">99823.4</span>
+                        </div>
+                        <div id="timeDisplay" class="text-lg font-bold text-lcars-amber">
+                            00:00 / 00:00
+                        </div>
+                    </div>
+                </section>
+
+                <!-- CANVAS DE VISUALIZACIÓN Y PANEL DE ECUALIZADOR -->
+                <section class="flex-1 relative bg-black/95 border border-lcars-purple/40 rounded flex flex-col justify-center items-center overflow-hidden min-h-[220px]">
+                    
+                    <!-- Canvas para Núcleo de Curvatura y Osciloscopio -->
+                    <canvas id="visualizerCanvas" class="w-full h-full absolute inset-0"></canvas>
+
+                    <!-- Panel de Ecualizador superpuesto -->
+                    <div id="eqPanel" class="absolute inset-0 bg-black/95 backdrop-blur-md p-4 flex flex-col justify-between transition-all transform translate-y-full opacity-0 pointer-events-none z-20">
+                        <div class="flex justify-between items-center border-b border-lcars-purple pb-2">
+                            <h3 class="text-lg font-bold text-lcars-purple flex items-center gap-2">
+                                <i class="fa-solid fa-sliders"></i> ECUALIZADOR TÁCTICO DE 5 BANDAS WEBAUDIO
+                            </h3>
+                            <!-- Menú de preajustes -->
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs font-mono text-lcars-amber">PREAJUSTE:</label>
+                                <select id="eqPresets" class="bg-black text-lcars-amber border border-lcars-amber text-xs font-mono p-1.5 rounded cursor-pointer">
+                                    <option value="flat">Predeterminado / Plano</option>
+                                    <option value="warp">Motor de Curvatura</option>
+                                    <option value="holodeck">Acústica Holodeck</option>
+                                    <option value="borg">Asimilación Borg</option>
+                                    <option value="bassBoost">Aumento de Graves</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 5 Deslizadores de frecuencia -->
+                        <div class="grid grid-cols-5 gap-4 my-auto max-w-md mx-auto w-full text-center">
+                            <!-- 60Hz -->
+                            <div class="flex flex-col items-center gap-2">
+                                <span class="text-xs font-mono text-lcars-orange" id="val60">0dB</span>
+                                <input type="range" id="eq60" min="-12" max="12" value="0" step="1" class="slider-vertical">
+                                <span class="text-xs font-mono text-lcars-blue">60Hz</span>
+                                <span class="text-[9px] text-gray-500 font-mono">GRAVES</span>
+                            </div>
+                            <!-- 230Hz -->
+                            <div class="flex flex-col items-center gap-2">
+                                <span class="text-xs font-mono text-lcars-orange" id="val230">0dB</span>
+                                <input type="range" id="eq230" min="-12" max="12" value="0" step="1" class="slider-vertical">
+                                <span class="text-xs font-mono text-lcars-blue">230Hz</span>
+                                <span class="text-[9px] text-gray-500 font-mono">BAJO-MEDIO</span>
+                            </div>
+                            <!-- 910Hz -->
+                            <div class="flex flex-col items-center gap-2">
+                                <span class="text-xs font-mono text-lcars-orange" id="val910">0dB</span>
+                                <input type="range" id="eq910" min="-12" max="12" value="0" step="1" class="slider-vertical">
+                                <span class="text-xs font-mono text-lcars-blue">910Hz</span>
+                                <span class="text-[9px] text-gray-500 font-mono">MEDIOS</span>
+                            </div>
+                            <!-- 4kHz -->
+                            <div class="flex flex-col items-center gap-2">
+                                <span class="text-xs font-mono text-lcars-orange" id="val4k">0dB</span>
+                                <input type="range" id="eq4k" min="-12" max="12" value="0" step="1" class="slider-vertical">
+                                <span class="text-xs font-mono text-lcars-blue">4kHz</span>
+                                <span class="text-[9px] text-gray-500 font-mono">ALTO-MEDIO</span>
+                            </div>
+                            <!-- 14kHz -->
+                            <div class="flex flex-col items-center gap-2">
+                                <span class="text-xs font-mono text-lcars-orange" id="val14k">0dB</span>
+                                <input type="range" id="eq14k" min="-12" max="12" value="0" step="1" class="slider-vertical">
+                                <span class="text-xs font-mono text-lcars-blue">14kHz</span>
+                                <span class="text-[9px] text-gray-500 font-mono">AGUDOS</span>
+                            </div>
+                        </div>
+
+                        <div class="text-right">
+                            <button id="btnCloseEq" class="lcars-btn bg-lcars-orange text-black px-4 py-1 text-xs">
+                                CERRAR ECUALIZADOR
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- BARRA DE PROGRESO Y CONTROLES DE REPRODUCCIÓN -->
+                <section class="bg-black p-3 rounded border-t-2 border-lcars-orange flex flex-col gap-3">
+                    
+                    <!-- Barra de tiempo/desplazamiento -->
+                    <div class="flex items-center gap-3">
+                        <span id="currTime" class="text-xs font-mono text-lcars-amber w-12">00:00</span>
+                        <div class="flex-1 relative cursor-pointer group" id="progressBarContainer">
+                            <div class="w-full bg-gray-900 h-4 rounded-full overflow-hidden border border-lcars-amber/40">
+                                <div id="progressBar" class="bg-lcars-amber h-full w-0 transition-all duration-100 relative">
+                                    <div class="absolute right-0 top-0 bottom-0 w-2 bg-white opacity-80"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <span id="totalTime" class="text-xs font-mono text-lcars-amber w-12 text-right">00:00</span>
+                    </div>
+
+                    <!-- Botones de acción principal y volumen -->
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        
+                        <!-- Controles de transporte -->
+                        <div class="flex items-center gap-2">
+                            <button id="btnPrev" class="lcars-btn bg-lcars-purple text-black px-3 py-2 text-sm" title="Pista Anterior">
+                                <i class="fa-solid fa-backward-step"></i>
+                            </button>
+
+                            <button id="btnPlay" class="lcars-btn bg-lcars-orange text-black px-6 py-2 text-base font-bold min-w-[120px]">
+                                <i class="fa-solid fa-play mr-1.5" id="playIcon"></i> <span id="playBtnText">REPRODUCIR</span>
+                            </button>
+
+                            <button id="btnNext" class="lcars-btn bg-lcars-purple text-black px-3 py-2 text-sm" title="Pista Siguiente">
+                                <i class="fa-solid fa-forward-step"></i>
+                            </button>
+
+                            <button id="btnStop" class="lcars-btn bg-lcars-red text-black px-3 py-2 text-sm" title="Detener">
+                                <i class="fa-solid fa-stop"></i>
+                            </button>
+
+                            <!-- Botones Aleatorio y Repetir -->
+                            <button id="btnShuffle" class="lcars-btn bg-lcars-peach text-black px-3 py-2 text-sm" title="Modo Aleatorio">
+                                <i class="fa-solid fa-shuffle"></i>
+                            </button>
+                            <button id="btnLoop" class="lcars-btn bg-lcars-peach text-black px-3 py-2 text-sm" title="Repetir Bucle">
+                                <i class="fa-solid fa-repeat"></i>
+                            </button>
+                        </div>
+
+                        <!-- Ajuste de Volumen -->
+                        <div class="flex items-center gap-3 bg-lcars-panel px-3 py-1.5 rounded border border-lcars-amber/30">
+                            <button id="btnMute" class="text-lcars-amber hover:text-white transition">
+                                <i id="muteIcon" class="fa-solid fa-volume-high"></i>
+                            </button>
+                            <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.8" class="w-24 md:w-32">
+                            <span id="volVal" class="text-xs font-mono text-lcars-amber w-8">80%</span>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <!-- PANEL DERECHO: LISTA DE PISTAS -->
+            <aside class="w-full md:w-64 bg-lcars-panel/90 border border-lcars-purple/30 rounded-lg p-3 flex flex-col justify-between gap-2 shrink-0">
+                <div class="flex justify-between items-center border-b border-lcars-purple pb-1">
+                    <h3 class="font-bold text-sm text-lcars-purple uppercase flex items-center gap-2">
+                        <i class="fa-solid fa-list-ul"></i> BANCOS DE MEMORIA
+                    </h3>
+                    <span id="playlistCount" class="text-xs font-mono text-lcars-amber">0 PISTAS</span>
+                </div>
+
+                <!-- Contenedor dinámico de lista -->
+                <div id="playlistContainer" class="flex-1 overflow-y-auto max-h-[220px] md:max-h-none space-y-1 my-2 pr-1">
+                    <div class="text-center py-8 text-xs font-mono text-gray-500">
+                        SIN DATOS EN NÚCLEO DE MEMORIA<br>ARRASTRA ARCHIVOS O HAZ CLIC EN "CARGAR PISTAS"
+                    </div>
+                </div>
+
+                <!-- Zona para arrastrar archivos -->
+                <div id="dropZone" class="border-2 border-dashed border-lcars-amber/40 hover:border-lcars-amber p-2 rounded text-center cursor-pointer transition">
+                    <p class="text-[11px] font-mono text-lcars-amber uppercase">
+                        <i class="fa-solid fa-cloud-arrow-up text-sm mb-1 block"></i>
+                        ARRASTRA Y SUELTA PISTAS DE AUDIO AQUÍ
+                    </p>
+                </div>
+            </aside>
+        </div>
+
+        <!-- PIE DE PÁGINA LCARS -->
+        <footer class="mt-2 flex items-center justify-between text-[11px] font-mono text-lcars-blue bg-black border-t border-lcars-orange/40 pt-1">
+            <div class="flex items-center gap-3">
+                <span class="text-lcars-orange font-bold">VOZ DE COMPUTADORA: EN LÍNEA</span>
+                <span class="hidden sm:inline">|</span>
+                <span class="hidden sm:inline text-gray-400">ATAJOS: [ESPACIO] Play/Pausa | [←/→] Pistas | [↑/↓] Volumen | [R] Alerta Roja</span>
+            </div>
+            <div>
+                <span class="text-lcars-amber">MOTOR-AUDIO-KC v5.0</span>
+            </div>
+        </footer>
+
+    </div>
+
+    <script>
+        /* ===================================================================
+           KC MUSICPLAYER - MOTOR DE AUDIO LCARS Y CONTROLADOR PRINCIPAL
+           =================================================================== */
+
+        // Web Audio Context & Nodes
+        let audioCtx = null;
+        let audioSource = null;
+        let analyser = null;
+        let gainNode = null;
+        let eqNodes = [];
+
+        // Elemento de Audio HTML
+        const audioElement = new Audio();
+        audioElement.crossOrigin = "anonymous";
+
+        // Estado de la Aplicación
+        let playlist = [];
+        let currentTrackIndex = -1;
+        let isPlaying = false;
+        let isRedAlert = false;
+        let isShuffle = false;
+        let isLoop = false;
+        let synthOscillator = null;
+        let isSynthPlaying = false;
+        let visualizerMode = 0; // 0: Núcleo de Curvatura, 1: Osciloscopio, 2: Pulso Subespacial
+
+        // Elementos DOM
+        const btnPlay = document.getElementById('btnPlay');
+        const playIcon = document.getElementById('playIcon');
+        const playBtnText = document.getElementById('playBtnText');
+        const btnPrev = document.getElementById('btnPrev');
+        const btnNext = document.getElementById('btnNext');
+        const btnStop = document.getElementById('btnStop');
+        const btnMute = document.getElementById('btnMute');
+        const muteIcon = document.getElementById('muteIcon');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volVal = document.getElementById('volVal');
+        const btnShuffle = document.getElementById('btnShuffle');
+        const btnLoop = document.getElementById('btnLoop');
+        const progressBar = document.getElementById('progressBar');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const currTimeDisp = document.getElementById('currTime');
+        const totalTimeDisp = document.getElementById('totalTime');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const trackTitle = document.getElementById('trackTitle');
+        const trackArtist = document.getElementById('trackArtist');
+        const playlistContainer = document.getElementById('playlistContainer');
+        const playlistCount = document.getElementById('playlistCount');
+        const fileInput = document.getElementById('fileInput');
+        const btnLoadFiles = document.getElementById('btnLoadFiles');
+        const btnSynthDemo = document.getElementById('btnSynthDemo');
+        const btnRedAlert = document.getElementById('btnRedAlert');
+        const redAlertText = document.getElementById('redAlertText');
+        const redAlertOverlay = document.getElementById('redAlertOverlay');
+        const btnEqToggle = document.getElementById('btnEqToggle');
+        const btnCloseEq = document.getElementById('btnCloseEq');
+        const eqPanel = document.getElementById('eqPanel');
+        const eqPresets = document.getElementById('eqPresets');
+        const btnVisualMode = document.getElementById('btnVisualMode');
+        const canvas = document.getElementById('visualizerCanvas');
+        const canvasCtx = canvas.getContext('2d');
+        const dropZone = document.getElementById('dropZone');
+
+        // Elementos de Telemetría
+        const telSampleRate = document.getElementById('telSampleRate');
+        const telBitrate = document.getElementById('telBitrate');
+        const telBpm = document.getElementById('telBpm');
+
+        function initWebAudio() {
+            if (audioCtx) return;
+
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+
+            // Crear Analizador
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+
+            // Control de Ganancia Principal
+            gainNode = audioCtx.createGain();
+            gainNode.gain.value = volumeSlider.value;
+
+            // Fuente de Audio desde el HTML
+            audioSource = audioCtx.createMediaElementSource(audioElement);
+
+            // Filtros del Ecualizador de 5 bandas (60Hz, 230Hz, 910Hz, 4kHz, 14kHz)
+            const frequencies = [60, 230, 910, 4000, 14000];
+            eqNodes = frequencies.map((freq, index) => {
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = index === 0 ? 'lowshelf' : (index === frequencies.length - 1 ? 'highshelf' : 'peaking');
+                filter.frequency.value = freq;
+                filter.gain.value = 0;
+                return filter;
+            });
+
+            // Conectar Cadena: Fuente -> Filtros EQ -> Ganancia -> Analizador -> Salida
+            let lastNode = audioSource;
+            eqNodes.forEach(filter => {
+                lastNode.connect(filter);
+                lastNode = filter;
+            });
+
+            lastNode.connect(gainNode);
+            gainNode.connect(analyser);
+            analyser.connect(audioCtx.destination);
+        }
+
+        // Sintetizar pitidos y tonos táctiles estilo LCARS
+        function playLcarsBeep(type = 'standard') {
+            try {
+                if (!audioCtx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    audioCtx = new AudioContext();
+                }
+
+                const osc = audioCtx.createOscillator();
+                const beepGain = audioCtx.createGain();
+                osc.connect(beepGain);
+                beepGain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'standard') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1240, now);
+                    osc.frequency.exponentialRampToValueAtTime(1760, now + 0.06);
+                    beepGain.gain.setValueAtTime(0.12, now);
+                    beepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'alert') {
+                    // Sirena Klaxon de Alerta Roja
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(480, now);
+                    osc.frequency.linearRampToValueAtTime(840, now + 0.28);
+                    beepGain.gain.setValueAtTime(0.25, now);
+                    beepGain.gain.linearRampToValueAtTime(0.001, now + 0.32);
+                    osc.start(now);
+                    osc.stop(now + 0.32);
+                } else if (type === 'click') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(950, now);
+                    beepGain.gain.setValueAtTime(0.08, now);
+                    beepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+                    osc.start(now);
+                    osc.stop(now + 0.04);
+                }
+            } catch (e) {
+                // Previene bloqueos por políticas de reproducción
+            }
+        }
+
+        // Sintetizador de tono ambiental del Motor de Curvatura
+        function toggleWarpSynthStream() {
+            initWebAudio();
+            playLcarsBeep('standard');
+
+            if (isSynthPlaying) {
+                stopSynthStream();
+                return;
+            }
+
+            if (isPlaying) {
+                audioElement.pause();
+                isPlaying = false;
+                updatePlayButtonUI();
+            }
+
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 60; // Frecuencia grave del motor
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 200;
+
+            osc.connect(filter);
+            filter.connect(gainNode);
+
+            osc.start();
+            synthOscillator = osc;
+            isSynthPlaying = true;
+
+            trackTitle.innerText = "SINTETIZADOR DEL NÚCLEO DE CURVATURA";
+            trackArtist.innerText = "Modulación Activa de Plasma Subespacial";
+            btnSynthDemo.classList.add('animate-pulse', 'bg-lcars-amber');
+            
+            // Telemetría
+            telSampleRate.innerText = "96.0 kHz";
+            telBitrate.innerText = "TRANSMISIÓN FLAC";
+            telBpm.innerText = "120 BPM";
+        }
+
+        function stopSynthStream() {
+            if (synthOscillator) {
+                synthOscillator.stop();
+                synthOscillator.disconnect();
+                synthOscillator = null;
+            }
+            isSynthPlaying = false;
+            btnSynthDemo.classList.remove('animate-pulse', 'bg-lcars-amber');
+            trackTitle.innerText = playlist.length > 0 ? playlist[currentTrackIndex]?.name : "SIN ARCHIVO DE AUDIO CARGADO";
+            trackArtist.innerText = playlist.length > 0 ? "Pista en Núcleo de Memoria Local" : "Selecciona archivos MP3/WAV o activa el Sintetizador del Motor";
+        }
+
+        function loadFiles(files) {
+            initWebAudio();
+            playLcarsBeep('standard');
+
+            const validFiles = Array.from(files).filter(f => f.type.startsWith('audio/'));
+            if (validFiles.length === 0) return;
+
+            playlist = validFiles.map(file => ({
+                name: file.name.replace(/\.[^/.]+$/, ""),
+                file: file,
+                url: URL.createObjectURL(file)
+            }));
+
+            renderPlaylist();
+            playTrack(0);
+        }
+
+        function renderPlaylist() {
+            playlistContainer.innerHTML = '';
+            playlistCount.innerText = `${playlist.length} PISTAS`;
+
+            playlist.forEach((track, idx) => {
+                const item = document.createElement('div');
+                item.className = `p-2 text-xs font-mono rounded cursor-pointer flex justify-between items-center transition ${
+                    idx === currentTrackIndex ? 'bg-lcars-amber text-black font-bold' : 'bg-black text-lcars-amber hover:bg-lcars-amber/20 border border-lcars-amber/20'
+                }`;
+                
+                item.innerHTML = `
+                    <div class="truncate flex items-center gap-2">
+                        <span>${idx === currentTrackIndex ? '<i class="fa-solid fa-volume-high"></i>' : (idx + 1).toString().padStart(2, '0')}</span>
+                        <span class="truncate">${track.name}</span>
+                    </div>
+                    <span class="text-[10px] opacity-75">PISTA</span>
+                `;
+
+                item.addEventListener('click', () => {
+                    playLcarsBeep('click');
+                    playTrack(idx);
+                });
+
+                playlistContainer.appendChild(item);
+            });
+        }
+
+        function playTrack(index) {
+            if (index < 0 || index >= playlist.length) return;
+
+            if (isSynthPlaying) stopSynthStream();
+
+            currentTrackIndex = index;
+            const track = playlist[index];
+
+            audioElement.src = track.url;
+            audioElement.play();
+            isPlaying = true;
+
+            trackTitle.innerText = track.name.toUpperCase();
+            trackArtist.innerText = `PISTA NÚCLEO DE AUDIO #${(index + 1).toString().padStart(2, '0')}`;
+
+            // Actualización de telemetría
+            telSampleRate.innerText = `${(Math.random() > 0.5 ? 44.1 : 48.0).toFixed(1)} kHz`;
+            telBitrate.innerText = `${[192, 256, 320][Math.floor(Math.random() * 3)]} kbps`;
+            telBpm.innerText = `${Math.floor(90 + Math.random() * 50)} BPM`;
+
+            updatePlayButtonUI();
+            renderPlaylist();
+        }
+
+        function togglePlay() {
+            initWebAudio();
+            playLcarsBeep('standard');
+
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            if (playlist.length === 0 && !isSynthPlaying) {
+                toggleWarpSynthStream();
+                return;
+            }
+
+            if (isPlaying) {
+                audioElement.pause();
+                isPlaying = false;
+            } else {
+                if (isSynthPlaying) stopSynthStream();
+                audioElement.play();
+                isPlaying = true;
+            }
+            updatePlayButtonUI();
+        }
+
+        function updatePlayButtonUI() {
+            if (isPlaying) {
+                playIcon.className = "fa-solid fa-pause mr-1.5";
+                playBtnText.innerText = "PAUSAR";
+            } else {
+                playIcon.className = "fa-solid fa-play mr-1.5";
+                playBtnText.innerText = "REPRODUCIR";
+            }
+        }
+
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "00:00";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function toggleRedAlert() {
+            isRedAlert = !isRedAlert;
+            playLcarsBeep('alert');
+
+            const container = document.getElementById('lcarsContainer');
+            const topCorner = document.getElementById('lcarsTopCorner');
+            const subBlock1 = document.getElementById('lcarsSubBlock1');
+            const sideHeader = document.getElementById('lcarsSideHeader');
+            const sideFooter = document.getElementById('lcarsSideFooter');
+
+            if (isRedAlert) {
+                document.body.classList.add('red-alert-theme');
+                container.classList.add('border-lcars-redbright');
+                container.classList.remove('border-lcars-orange');
+                
+                topCorner.className = "w-32 h-10 bg-lcars-redbright rounded-tl-3xl rounded-bl-sm flex items-center justify-end pr-3 transition-colors duration-500";
+                subBlock1.className = "w-8 h-4 bg-red-800 self-start ml-2 mt-1 rounded-sm transition-colors duration-500";
+                sideHeader.className = "bg-lcars-redbright text-black p-3 rounded-tl-2xl rounded-tr-md font-extrabold text-sm flex justify-between items-center transition-colors duration-500";
+                sideFooter.className = "h-6 bg-lcars-redbright rounded-bl-2xl rounded-br-md transition-colors duration-500";
+
+                redAlertOverlay.classList.remove('opacity-0');
+                redAlertOverlay.classList.add('red-alert-active');
+                btnRedAlert.classList.replace('bg-lcars-red', 'bg-red-500');
+                redAlertText.innerText = "CONDICIÓN ROJA";
+                document.getElementById('stardateVal').classList.add('text-red-500');
+            } else {
+                document.body.classList.remove('red-alert-theme');
+                container.classList.remove('border-lcars-redbright');
+                container.classList.add('border-lcars-orange');
+
+                topCorner.className = "w-32 h-10 bg-lcars-orange rounded-tl-3xl rounded-bl-sm flex items-center justify-end pr-3 transition-colors duration-500";
+                subBlock1.className = "w-8 h-4 bg-lcars-amber self-start ml-2 mt-1 rounded-sm transition-colors duration-500";
+                sideHeader.className = "bg-lcars-orange text-black p-3 rounded-tl-2xl rounded-tr-md font-extrabold text-sm flex justify-between items-center transition-colors duration-500";
+                sideFooter.className = "h-6 bg-lcars-amber rounded-bl-2xl rounded-br-md transition-colors duration-500";
+
+                redAlertOverlay.classList.add('opacity-0');
+                redAlertOverlay.classList.remove('red-alert-active');
+                btnRedAlert.classList.replace('bg-red-500', 'bg-lcars-red');
+                redAlertText.innerText = "ALERTA ROJA";
+                document.getElementById('stardateVal').classList.remove('text-red-500');
+            }
+        }
+
+        function bindEqControls() {
+            const bands = [
+                { id: 'eq60', nodeIndex: 0, valLabel: 'val60' },
+                { id: 'eq230', nodeIndex: 1, valLabel: 'val230' },
+                { id: 'eq910', nodeIndex: 2, valLabel: 'val910' },
+                { id: 'eq4k', nodeIndex: 3, valLabel: 'val4k' },
+                { id: 'eq14k', nodeIndex: 4, valLabel: 'val14k' }
+            ];
+
+            bands.forEach(b => {
+                const slider = document.getElementById(b.id);
+                const label = document.getElementById(b.valLabel);
+                slider.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    label.innerText = `${val > 0 ? '+' : ''}${val}dB`;
+                    if (eqNodes[b.nodeIndex]) {
+                        eqNodes[b.nodeIndex].gain.value = val;
+                    }
+                });
+            });
+
+            // Preajustes del Ecualizador
+            eqPresets.addEventListener('change', (e) => {
+                playLcarsBeep('click');
+                const presetMap = {
+                    flat: [0, 0, 0, 0, 0],
+                    warp: [8, 5, -2, 4, 6],
+                    holodeck: [3, 2, 5, 2, -1],
+                    borg: [-4, 6, -2, 8, -5],
+                    bassBoost: [10, 7, 1, -2, -4]
+                };
+
+                const vals = presetMap[e.target.value] || [0, 0, 0, 0, 0];
+                bands.forEach((b, idx) => {
+                    const slider = document.getElementById(b.id);
+                    const label = document.getElementById(b.valLabel);
+                    slider.value = vals[idx];
+                    label.innerText = `${vals[idx] > 0 ? '+' : ''}${vals[idx]}dB`;
+                    if (eqNodes[b.nodeIndex]) {
+                        eqNodes[b.nodeIndex].gain.value = vals[idx];
+                    }
+                });
+            });
+        }
+
+        function renderVisualizer() {
+            requestAnimationFrame(renderVisualizer);
+
+            const width = canvas.width = canvas.clientWidth;
+            const height = canvas.height = canvas.clientHeight;
+
+            canvasCtx.fillStyle = '#000000';
+            canvasCtx.fillRect(0, 0, width, height);
+
+            if (!analyser) {
+                // Rejilla de espera
+                canvasCtx.strokeStyle = '#221100';
+                canvasCtx.lineWidth = 1;
+                for (let x = 0; x < width; x += 30) {
+                    canvasCtx.beginPath();
+                    canvasCtx.moveTo(x, 0);
+                    canvasCtx.lineTo(x, height);
+                    canvasCtx.stroke();
+                }
+                return;
+            }
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            if (visualizerMode === 0) {
+                // Espectro de frecuencias - Núcleo de Curvatura
+                analyser.getByteFrequencyData(dataArray);
+
+                const barWidth = (width / bufferLength) * 2.5;
+                let x = 0;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = (dataArray[i] / 255) * height;
+
+                    let color = '#ff9900';
+                    if (isRedAlert) color = '#ff0000';
+                    else if (i < bufferLength * 0.25) color = '#ff9900';
+                    else if (i < bufferLength * 0.65) color = '#ffcc00';
+                    else color = '#9999ff';
+
+                    canvasCtx.fillStyle = color;
+                    canvasCtx.fillRect(x, height - barHeight, barWidth - 2, barHeight);
+
+                    // Reflejo
+                    canvasCtx.fillStyle = color + '44';
+                    canvasCtx.fillRect(x, 0, barWidth - 2, barHeight * 0.35);
+
+                    x += barWidth;
+                }
+            } else if (visualizerMode === 1) {
+                // Osciloscopio Subespacial
+                analyser.getByteTimeDomainData(dataArray);
+
+                canvasCtx.lineWidth = 2;
+                canvasCtx.strokeStyle = isRedAlert ? '#ff0000' : '#ffcc00';
+                canvasCtx.beginPath();
+
+                const sliceWidth = width * 1.0 / bufferLength;
+                let x = 0;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const v = dataArray[i] / 128.0;
+                    const y = v * height / 2;
+
+                    if (i === 0) canvasCtx.moveTo(x, y);
+                    else canvasCtx.lineTo(x, y);
+
+                    x += sliceWidth;
+                }
+
+                canvasCtx.lineTo(canvas.width, canvas.height / 2);
+                canvasCtx.stroke();
+            } else if (visualizerMode === 2) {
+                // Pulso Radial Subespacial
+                analyser.getByteFrequencyData(dataArray);
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const radius = Math.min(centerX, centerY) * 0.4;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = (dataArray[i] / 255) * 85;
+                    const rads = (Math.PI * 2 / bufferLength) * i;
+
+                    const x1 = centerX + Math.cos(rads) * radius;
+                    const y1 = centerY + Math.sin(rads) * radius;
+                    const x2 = centerX + Math.cos(rads) * (radius + barHeight);
+                    const y2 = centerY + Math.sin(rads) * (radius + barHeight);
+
+                    canvasCtx.strokeStyle = isRedAlert ? '#ff0000' : (i % 2 === 0 ? '#ff9900' : '#cc99cc');
+                    canvasCtx.lineWidth = 3;
+                    canvasCtx.beginPath();
+                    canvasCtx.moveTo(x1, y1);
+                    canvasCtx.lineTo(x2, y2);
+                    canvasCtx.stroke();
+                }
+            }
+        }
+
+        function setupEventListeners() {
+            // Actualización de tiempo de audio
+            audioElement.addEventListener('timeupdate', () => {
+                if (audioElement.duration) {
+                    const progress = (audioElement.currentTime / audioElement.duration) * 100;
+                    progressBar.style.width = `${progress}%`;
+                    currTimeDisp.innerText = formatTime(audioElement.currentTime);
+                    totalTimeDisp.innerText = formatTime(audioElement.duration);
+                    timeDisplay.innerText = `${formatTime(audioElement.currentTime)} / ${formatTime(audioElement.duration)}`;
+                }
+            });
+
+            audioElement.addEventListener('ended', () => {
+                if (isLoop) {
+                    playTrack(currentTrackIndex);
+                } else if (isShuffle && playlist.length > 1) {
+                    const nextRand = Math.floor(Math.random() * playlist.length);
+                    playTrack(nextRand);
+                } else if (currentTrackIndex < playlist.length - 1) {
+                    playTrack(currentTrackIndex + 1);
+                } else {
+                    isPlaying = false;
+                    updatePlayButtonUI();
+                }
+            });
+
+            // Avance/Retroceso al hacer clic en la barra
+            progressBarContainer.addEventListener('click', (e) => {
+                if (!audioElement.duration) return;
+                const rect = progressBarContainer.getBoundingClientRect();
+                const pos = (e.clientX - rect.left) / rect.width;
+                audioElement.currentTime = pos * audioElement.duration;
+            });
+
+            // Botones de transporte
+            btnPlay.addEventListener('click', togglePlay);
+            btnStop.addEventListener('click', () => {
+                playLcarsBeep('click');
+                if (isSynthPlaying) stopSynthStream();
+                audioElement.pause();
+                audioElement.currentTime = 0;
+                isPlaying = false;
+                updatePlayButtonUI();
+            });
+
+            btnNext.addEventListener('click', () => {
+                playLcarsBeep('click');
+                if (playlist.length > 0) {
+                    if (isShuffle) {
+                        playTrack(Math.floor(Math.random() * playlist.length));
+                    } else {
+                        playTrack((currentTrackIndex + 1) % playlist.length);
+                    }
+                }
+            });
+
+            btnPrev.addEventListener('click', () => {
+                playLcarsBeep('click');
+                if (playlist.length > 0) {
+                    playTrack((currentTrackIndex - 1 + playlist.length) % playlist.length);
+                }
+            });
+
+            // Alternar Aleatorio y Bucle
+            btnShuffle.addEventListener('click', () => {
+                isShuffle = !isShuffle;
+                playLcarsBeep('click');
+                btnShuffle.classList.toggle('active', isShuffle);
+            });
+
+            btnLoop.addEventListener('click', () => {
+                isLoop = !isLoop;
+                playLcarsBeep('click');
+                btnLoop.classList.toggle('active', isLoop);
+            });
+
+            // Ajuste de volumen
+            volumeSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                audioElement.volume = val;
+                if (gainNode) gainNode.gain.value = val;
+                volVal.innerText = `${Math.round(val * 100)}%`;
+                muteIcon.className = val === 0 ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high";
+            });
+
+            btnMute.addEventListener('click', () => {
+                playLcarsBeep('click');
+                audioElement.muted = !audioElement.muted;
+                muteIcon.className = audioElement.muted ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high";
+            });
+
+            // Carga de Archivos
+            btnLoadFiles.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => loadFiles(e.target.files));
+
+            // Arrastrar y soltar
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-lcars-orange', 'bg-lcars-orange/10');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-lcars-orange', 'bg-lcars-orange/10');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-lcars-orange', 'bg-lcars-orange/10');
+                if (e.dataTransfer.files) loadFiles(e.dataTransfer.files);
+            });
+
+            // Conmutadores del sistema
+            btnRedAlert.addEventListener('click', toggleRedAlert);
+
+            btnEqToggle.addEventListener('click', () => {
+                playLcarsBeep('standard');
+                eqPanel.classList.remove('translate-y-full', 'opacity-0', 'pointer-events-none');
+            });
+
+            btnCloseEq.addEventListener('click', () => {
+                playLcarsBeep('click');
+                eqPanel.classList.add('translate-y-full', 'opacity-0', 'pointer-events-none');
+            });
+
+            btnSynthDemo.addEventListener('click', toggleWarpSynthStream);
+
+            btnVisualMode.addEventListener('click', () => {
+                playLcarsBeep('click');
+                visualizerMode = (visualizerMode + 1) % 3;
+            });
+
+            // Atajos de teclado
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    togglePlay();
+                } else if (e.code === 'ArrowRight') {
+                    if (playlist.length > 0) playTrack((currentTrackIndex + 1) % playlist.length);
+                } else if (e.code === 'ArrowLeft') {
+                    if (playlist.length > 0) playTrack((currentTrackIndex - 1 + playlist.length) % playlist.length);
+                } else if (e.code === 'ArrowUp') {
+                    e.preventDefault();
+                    volumeSlider.value = Math.min(1, parseFloat(volumeSlider.value) + 0.05);
+                    volumeSlider.dispatchEvent(new Event('input'));
+                } else if (e.code === 'ArrowDown') {
+                    e.preventDefault();
+                    volumeSlider.value = Math.max(0, parseFloat(volumeSlider.value) - 0.05);
+                    volumeSlider.dispatchEvent(new Event('input'));
+                } else if (e.code === 'KeyR') {
+                    toggleRedAlert();
+                }
+            });
+        }
+
+        window.onload = function() {
+            bindEqControls();
+            setupEventListeners();
+            renderVisualizer();
+
+            // Simulación de Reloj de Fecha Estelar
+            setInterval(() => {
+                const sd = (99820 + (Date.now() % 100000) / 1000).toFixed(1);
+                document.getElementById('stardateVal').innerText = sd;
+            }, 2000);
+        };
+    </script>
+</body>
+</html>
