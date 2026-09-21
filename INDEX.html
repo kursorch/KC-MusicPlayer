@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-black text-amber-500 select-none overflow-hidden">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KC MusicPlayer - Terminal LCARS de la Flota Estelar v6.0</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts para estilo LCARS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        lcars: {
+                            orange: '#ff9900',
+                            amber: '#ffcc00',
+                            purple: '#cc99cc',
+                            blue: '#9999ff',
+                            red: '#cc0000',
+                            redbright: '#ff0000',
+                            peach: '#ff9966',
+                            pink: '#cc6699',
+                            darkred: '#220000',
+                            panel: '#0c0c12'
+                        }
+                    },
+                    fontFamily: {
+                        lcars: ['Antonio', 'sans-serif'],
+                        mono: ['Share Tech Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Antonio', sans-serif;
+            letter-spacing: 1.2px;
+            background-color: #000000;
+        }
+
+        /* Botones estilo píldora LCARS */
+        .lcars-btn {
+            border-radius: 20px;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .lcars-btn:hover {
+            filter: brightness(1.3);
+            box-shadow: 0 0 12px currentColor;
+        }
+
+        .lcars-btn:active {
+            transform: scale(0.96);
+            filter: brightness(0.85);
+        }
+
+        .lcars-btn.active {
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.8), 0 0 12px currentColor;
+            border: 2px solid #ffffff;
+        }
+
+        /* Personalización de barra de desplazamiento */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ff9900;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ffcc00;
+        }
+
+        /* Animación de Alerta Roja */
+        @keyframes redAlertPulse {
+            0%, 100% { background-color: rgba(204, 0, 0, 0.15); }
+            50% { background-color: rgba(255, 0, 0, 0.45); }
+        }
+
+        .red-alert-active {
+            animation: redAlertPulse 1.2s infinite ease-in-out;
+        }
+
+        /* Estilos de controles deslizantes */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #222;
+            border-radius: 3px;
+            border: 1px solid #444;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            height: 18px;
+            width: 14px;
+            border-radius: 3px;
+            background: #ff9900;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -6px;
+            box-shadow: 0 0 8px #ff9900;
+        }
+
+        .red-alert-theme input[type=range]::-webkit-slider-thumb {
+            background: #ff0000;
+            box-shadow: 0 0 8px #ff0000;
+        }
+
+        /* Deslizadores verticales para Ecualizador */
+        .slider-vertical {
+            writing-mode: bt-lr;
+            -webkit-appearance: slider-vertical;
+            width: 12px;
+            height: 130px;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col justify-between p-2 md:p-3 bg-black overflow-hidden relative">
+
+    <!-- Superposición de Alerta Roja -->
+    <div id="redAlertOverlay" class="pointer-events-none fixed inset-0 z-50 transition-opacity opacity-0 bg-red-600/20"></div>
+
+    <div id="lcarsContainer" class="flex flex-col h-full w-full max-w-7xl mx-auto border-r-8 border-lcars-orange pr-2 transition-colors duration-500">
+
+        <!-- CABECERA SUPERIOR LCARS -->
+        <header class="flex items-stretch gap-2 mb-2">
+            <div class="hidden sm:flex flex-col items-end">
+                <div id="lcarsTopCorner" class="w-28 h-9 bg-lcars-orange rounded-tl-3xl rounded-bl-sm flex items-center justify-end pr-3 transition-colors duration-500">
+                    <span class="text-black font-bold text-xs tracking-widest">LCARS</span>
+                </div>
+                <div id="lcarsSubBlock1" class="w-8 h-3 bg-lcars-amber self-start ml-2 mt-1 rounded-sm transition-colors duration-500"></div>
+            </div>
+
+            <div class="flex-1 bg-lcars-purple/20 border-b-2 border-lcars-purple flex items-center justify-between px-4 py-1 rounded-sm">
+                <div class="flex items-center gap-3">
+                    <div id="systemIndicator" class="w-3 h-3 rounded-full bg-lcars-amber animate-ping"></div>
+                    <h1 class="text-xl md:text-2xl font-extrabold tracking-wider text-lcars-amber uppercase">
+                        KC MUSICPLAYER <span class="text-xs text-lcars-blue tracking-widest font-mono ml-2">[NÚCLEO BIBLIOTECA v6.0]</span>
+                    </h1>
+                </div>
+
+                <div class="flex items-center gap-4 text-xs font-mono text-lcars-blue hidden md:flex">
+                    <div>SUBESPACIO: <span id="subspaceFreq" class="text-lcars-amber">472.903 MHz</span></div>
+                    <div>NÚCLEO AUDIO: <span id="coreStatus" class="text-emerald-400">EN LÍNEA</span></div>
+                    <div>CLASE: <span class="text-lcars-orange">NCC-1701-E</span></div>
+                </div>
+            </div>
+
+            <button id="btnRedAlert" class="lcars-btn bg-lcars-red text-black text-xs px-3 py-1 font-bold flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span id="redAlertText">ALERTA ROJA</span>
+            </button>
+        </header>
+
+        <!-- PANEL DE NAVEGACIÓN Y CONTENIDO -->
+        <div class="flex-1 flex flex-col md:flex-row gap-2 min-h-0">
+
+            <!-- BARRA LATERAL TÁCTICA -->
+            <aside class="w-full md:w-48 flex flex-col gap-2 shrink-0">
+                <div id="lcarsSideHeader" class="bg-lcars-orange text-black p-2 rounded-tl-2xl rounded-tr-md font-extrabold text-xs flex justify-between items-center transition-colors duration-500">
+                    <span>SECTOR 001</span>
+                    <span class="font-mono text-[10px]">8410.2</span>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-1 gap-1.5 flex-1">
+                    <button id="btnLoadFiles" class="lcars-btn bg-lcars-amber text-black py-2 px-3 text-left justify-between text-xs">
+                        <span><i class="fa-solid fa-folder-open mr-1"></i>CARGAR PISTAS</span>
+                        <span class="font-mono text-[10px] opacity-75">01</span>
+                    </button>
+                    <input type="file" id="fileInput" multiple accept="audio/*" class="hidden">
+
+                    <button id="btnSynthDemo" class="lcars-btn bg-lcars-blue text-black py-2 px-3 text-left justify-between text-xs">
+                        <span><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>SINTETIZADOR</span>
+                        <span class="font-mono text-[10px] opacity-75">02</span>
+                    </button>
+
+                    <button id="btnEqToggle" class="lcars-btn bg-lcars-purple text-black py-2 px-3 text-left justify-between text-xs">
+                        <span><i class="fa-solid fa-sliders mr-1"></i>ECUALIZADOR</span>
+                        <span class="font-mono text-[10px] opacity-75">03</span>
+                    </button>
+
+                    <button id="btnVisualMode" class="lcars-btn bg-lcars-peach text-black py-2 px-3 text-left justify-between text-xs">
+                        <span><i class="fa-solid fa-chart-simple mr-1"></i>VISUALIZADOR</span>
+                        <span class="font-mono text-[10px] opacity-75">04</span>
+                    </button>
+
+                    <div class="hidden md:flex flex-col gap-1 mt-auto bg-black border border-lcars-orange/30 p-2 rounded text-[10px] font-mono text-lcars-orange">
+                        <div class="flex justify-between"><span>MUESTREO:</span><span id="telSampleRate">48.0 kHz</span></div>
+                        <div class="flex justify-between"><span>TASA BITS:</span><span id="telBitrate">320 kbps</span></div>
+                        <div class="flex justify-between"><span>RANGO:</span><span>20Hz-20kHz</span></div>
+                        <div class="flex justify-between"><span>RITMO:</span><span id="telBpm">124 BPM</span></div>
+                    </div>
+                </div>
+
+                <div id="lcarsSideFooter" class="h-4 bg-lcars-amber rounded-bl-2xl rounded-br-md transition-colors duration-500"></div>
+            </aside>
+
+            <!-- SECCIÓN CENTRAL DE CONTROL DE REPRODUCCIÓN -->
+            <main class="flex-1 flex flex-col gap-2 min-h-0 bg-lcars-panel/90 border border-lcars-orange/30 p-2 rounded-lg relative overflow-hidden">
+
+                <!-- INFORMACIÓN DE PISTA -->
+                <section class="bg-black border-l-4 border-lcars-amber p-2.5 rounded flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                    <div class="flex-1 overflow-hidden">
+                        <div class="text-[10px] text-lcars-purple font-mono uppercase tracking-widest flex items-center gap-2">
+                            <span class="inline-block w-2 h-2 rounded-full bg-lcars-orange animate-pulse"></span>
+                            TRANSMITIENDO AHORA:
+                        </div>
+                        <h2 id="trackTitle" class="text-lg md:text-xl font-bold text-lcars-amber truncate tracking-wide">
+                            SIN ARCHIVO DE AUDIO CARGADO
+                        </h2>
+                        <div id="trackArtist" class="text-xs text-lcars-blue truncate font-mono">
+                            Selecciona archivos MP3/WAV o explora por artista
+                        </div>
+                    </div>
+
+                    <div class="flex flex-row md:flex-col items-end gap-1 font-mono text-[11px] text-right">
+                        <div class="bg-lcars-orange/20 text-lcars-orange px-2 py-0.5 rounded border border-lcars-orange/40">
+                            FECHA ESTELAR: <span id="stardateVal">99823.4</span>
+                        </div>
+                        <div id="timeDisplay" class="text-base font-bold text-lcars-amber">
+                            00:00 / 00:00
+                        </div>
+                    </div>
+                </section>
+
+                <!-- CANVAS DE VISUALIZACIÓN Y ECUALIZADOR -->
+                <section class="flex-1 relative bg-black/95 border border-lcars-purple/40 rounded flex flex-col justify-center items-center overflow-hidden min-h-[160px]">
+                    
+                    <canvas id="visualizerCanvas" class="w-full h-full absolute inset-0"></canvas>
+
+                    <!-- Ecualizador Superpuesto -->
+                    <div id="eqPanel" class="absolute inset-0 bg-black/95 backdrop-blur-md p-3 flex flex-col justify-between transition-all transform translate-y-full opacity-0 pointer-events-none z-20">
+                        <div class="flex justify-between items-center border-b border-lcars-purple pb-1">
+                            <h3 class="text-sm font-bold text-lcars-purple flex items-center gap-2">
+                                <i class="fa-solid fa-sliders"></i> ECUALIZADOR TÁCTICO DE 5 BANDAS
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <label class="text-[10px] font-mono text-lcars-amber">PREAJUSTE:</label>
+                                <select id="eqPresets" class="bg-black text-lcars-amber border border-lcars-amber text-[10px] font-mono p-1 rounded cursor-pointer">
+                                    <option value="flat">Predeterminado / Plano</option>
+                                    <option value="warp">Motor de Curvatura</option>
+                                    <option value="holodeck">Acústica Holodeck</option>
+                                    <option value="borg">Asimilación Borg</option>
+                                    <option value="bassBoost">Aumento de Graves</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-5 gap-3 my-auto max-w-sm mx-auto w-full text-center">
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="text-[10px] font-mono text-lcars-orange" id="val60">0dB</span>
+                                <input type="range" id="eq60" min="-12" max="12" value="0" step="1" class="slider-vertical">
+                                <span class="text-[10px] font-mono text-lcars-blue">60Hz</span>
+                            </div>
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="text-[10px] font-mono text-lcars-orange" id="val230">0dB</span>
+                                <input type="range" id="eq230" min="-12" max="12" value="0" step="1" class="slider-vertical">
+                                <span class="text-[10px] font-mono text-lcars-blue">230Hz</span>
+                            </div>
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="text-[10px] font-mono text-lcars-orange" id="val910">0dB</span>
+                                <input type="range" id="eq910" min="-12" max="12" value="0" step="1" class="slider-vertical">
+                                <span class="text-[10px] font-mono text-lcars-blue">910Hz</span>
+                            </div>
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="text-[10px] font-mono text-lcars-orange" id="val4k">0dB</span>
+                                <input type="range" id="eq4k" min="-12" max="12" value="0" step="1" class="slider-vertical">
+                                <span class="text-[10px] font-mono text-lcars-blue">4kHz</span>
+                            </div>
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="text-[10px] font-mono text-lcars-orange" id="val14k">0dB</span>
+                                <input type="range" id="eq14k" min="-12" max="12" value="0" step="1" class="slider-vertical">
+                                <span class="text-[10px] font-mono text-lcars-blue">14kHz</span>
+                            </div>
+                        </div>
+
+                        <div class="text-right">
+                            <button id="btnCloseEq" class="lcars-btn bg-lcars-orange text-black px-3 py-1 text-[10px]">
+                                CERRAR ECUALIZADOR
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- CONTROLES Y PROGRESO -->
+                <section class="bg-black p-2 rounded border-t-2 border-lcars-orange flex flex-col gap-2">
+                    <div class="flex items-center gap-2">
+                        <span id="currTime" class="text-[10px] font-mono text-lcars-amber w-10">00:00</span>
+                        <div class="flex-1 relative cursor-pointer group" id="progressBarContainer">
+                            <div class="w-full bg-gray-900 h-3 rounded-full overflow-hidden border border-lcars-amber/40">
+                                <div id="progressBar" class="bg-lcars-amber h-full w-0 transition-all duration-100 relative">
+                                    <div class="absolute right-0 top-0 bottom-0 w-2 bg-white opacity-80"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <span id="totalTime" class="text-[10px] font-mono text-lcars-amber w-10 text-right">00:00</span>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5">
+                            <button id="btnPrev" class="lcars-btn bg-lcars-purple text-black px-2.5 py-1 text-xs" title="Anterior">
+                                <i class="fa-solid fa-backward-step"></i>
+                            </button>
+
+                            <button id="btnPlay" class="lcars-btn bg-lcars-orange text-black px-4 py-1 text-sm font-bold min-w-[100px]">
+                                <i class="fa-solid fa-play mr-1" id="playIcon"></i> <span id="playBtnText">REPRODUCIR</span>
+                            </button>
+
+                            <button id="btnNext" class="lcars-btn bg-lcars-purple text-black px-2.5 py-1 text-xs" title="Siguiente">
+                                <i class="fa-solid fa-forward-step"></i>
+                            </button>
+
+                            <button id="btnStop" class="lcars-btn bg-lcars-red text-black px-2.5 py-1 text-xs" title="Detener">
+                                <i class="fa-solid fa-stop"></i>
+                            </button>
+
+                            <button id="btnShuffle" class="lcars-btn bg-lcars-peach text-black px-2.5 py-1 text-xs" title="Aleatorio">
+                                <i class="fa-solid fa-shuffle"></i>
+                            </button>
+                            <button id="btnLoop" class="lcars-btn bg-lcars-peach text-black px-2.5 py-1 text-xs" title="Bucle">
+                                <i class="fa-solid fa-repeat"></i>
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-2 bg-lcars-panel px-2 py-1 rounded border border-lcars-amber/30">
+                            <button id="btnMute" class="text-lcars-amber hover:text-white transition text-xs">
+                                <i id="muteIcon" class="fa-solid fa-volume-high"></i>
+                            </button>
+                            <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.8" class="w-20 md:w-24">
+                            <span id="volVal" class="text-[10px] font-mono text-lcars-amber w-6">80%</span>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <!-- PANEL DERECHO: ORGANIZADOR POR ARTISTAS Y COLA -->
+            <aside class="w-full md:w-80 bg-lcars-panel/90 border border-lcars-purple/30 rounded-lg p-2 flex flex-col gap-2 shrink-0 overflow-hidden">
+                
+                <!-- SECCIÓN 1: DIRECTORIO DE ARTISTAS (A-Z) -->
+                <div class="flex flex-col h-1/3 min-h-[110px] border-b border-lcars-purple/40 pb-1">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="font-bold text-xs text-lcars-purple uppercase flex items-center gap-1.5">
+                            <i class="fa-solid fa-user-astronaut"></i> ARTISTAS (A-Z)
+                        </h3>
+                        <span id="artistCount" class="text-[10px] font-mono text-lcars-amber">0 ARTISTAS</span>
+                    </div>
+                    <div id="artistListContainer" class="flex-1 overflow-y-auto space-y-1 pr-1">
+                        <div class="text-center py-3 text-[10px] font-mono text-gray-500">
+                            SIN DATOS DE ARTISTA
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 2: CANCIONES DEL ARTISTA SELECCIONADO (A-Z) -->
+                <div class="flex flex-col h-1/3 min-h-[110px] border-b border-lcars-purple/40 pb-1">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="font-bold text-xs text-lcars-amber uppercase flex items-center gap-1.5 truncate">
+                            <i class="fa-solid fa-music"></i> <span id="selectedArtistTitle" class="truncate">SELECCIONA ARTISTA</span>
+                        </h3>
+                        <button id="btnAddArtistTracks" class="text-[9px] bg-lcars-amber text-black px-1.5 py-0.5 rounded font-mono font-bold hidden hover:bg-white">
+                            + AÑADIR TODO
+                        </button>
+                    </div>
+                    <div id="artistTracksContainer" class="flex-1 overflow-y-auto space-y-1 pr-1">
+                        <div class="text-center py-3 text-[10px] font-mono text-gray-500">
+                            SELECCIONA UN ARTISTA
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 3: COLA DE REPRODUCCIÓN -->
+                <div class="flex flex-col flex-1 min-h-[110px]">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="font-bold text-xs text-lcars-orange uppercase flex items-center gap-1.5">
+                            <i class="fa-solid fa-list-check"></i> COLA EN MEMORIA
+                        </h3>
+                        <span id="queueCount" class="text-[10px] font-mono text-lcars-amber">0 EN COLA</span>
+                    </div>
+                    <div id="queueContainer" class="flex-1 overflow-y-auto space-y-1 pr-1">
+                        <div class="text-center py-3 text-[10px] font-mono text-gray-500">
+                            COLA VACÍA
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ZONA DRAG & DROP -->
+                <div id="dropZone" class="border border-dashed border-lcars-amber/40 hover:border-lcars-amber p-1.5 rounded text-center cursor-pointer transition shrink-0">
+                    <p class="text-[10px] font-mono text-lcars-amber uppercase">
+                        <i class="fa-solid fa-cloud-arrow-up text-xs mr-1"></i> ARRASTRA Y SUELTA ARCHIVOS MP3/WAV
+                    </p>
+                </div>
+            </aside>
+        </div>
+
+        <!-- PIE DE PÁGINA -->
+        <footer class="mt-1 flex items-center justify-between text-[10px] font-mono text-lcars-blue bg-black border-t border-lcars-orange/40 pt-1">
+            <div class="flex items-center gap-2">
+                <span class="text-lcars-orange font-bold">FLOTA ESTELAR LCARS</span>
+                <span>|</span>
+                <span class="text-gray-400">ORGANIZACIÓN A-Z Y COLA ACTIVA</span>
+            </div>
+            <div>
+                <span class="text-lcars-amber">MOTOR-AUDIO-KC v6.0</span>
+            </div>
+        </footer>
+
+    </div>
+
+    <script>
+        /* ===================================================================
+           KC MUSICPLAYER - MOTOR DE AUDIO LCARS Y GESTIÓN A-Z DE ARTISTAS
+           =================================================================== */
+
+        let audioCtx = null;
+        let audioSource = null;
+        let analyser = null;
+        let gainNode = null;
+        let eqNodes = [];
+
+        const audioElement = new Audio();
+        audioElement.crossOrigin = "anonymous";
+
+        // Estructuras de Datos
+        let masterLibrary = []; // Todos los archivos procesados
+        let artistMap = {};     // { "Nombre Artista": [ Canciones A-Z ] }
+        let currentQueue = [];   // Pistas en la cola de reproducción
+        let currentQueueIndex = -1;
+        let selectedArtistName = null;
+
+        let isPlaying = false;
+        let isRedAlert = false;
+        let isShuffle = false;
+        let isLoop = false;
+        let synthOscillator = null;
+        let isSynthPlaying = false;
+        let visualizerMode = 0;
+
+        // Elementos DOM
+        const btnPlay = document.getElementById('btnPlay');
+        const playIcon = document.getElementById('playIcon');
+        const playBtnText = document.getElementById('playBtnText');
+        const btnPrev = document.getElementById('btnPrev');
+        const btnNext = document.getElementById('btnNext');
+        const btnStop = document.getElementById('btnStop');
+        const btnMute = document.getElementById('btnMute');
+        const muteIcon = document.getElementById('muteIcon');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volVal = document.getElementById('volVal');
+        const btnShuffle = document.getElementById('btnShuffle');
+        const btnLoop = document.getElementById('btnLoop');
+        const progressBar = document.getElementById('progressBar');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const currTimeDisp = document.getElementById('currTime');
+        const totalTimeDisp = document.getElementById('totalTime');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const trackTitle = document.getElementById('trackTitle');
+        const trackArtist = document.getElementById('trackArtist');
+        const fileInput = document.getElementById('fileInput');
+        const btnLoadFiles = document.getElementById('btnLoadFiles');
+        const btnSynthDemo = document.getElementById('btnSynthDemo');
+        const btnRedAlert = document.getElementById('btnRedAlert');
+        const redAlertText = document.getElementById('redAlertText');
+        const redAlertOverlay = document.getElementById('redAlertOverlay');
+        const btnEqToggle = document.getElementById('btnEqToggle');
+        const btnCloseEq = document.getElementById('btnCloseEq');
+        const eqPanel = document.getElementById('eqPanel');
+        const eqPresets = document.getElementById('eqPresets');
+        const btnVisualMode = document.getElementById('btnVisualMode');
+        const canvas = document.getElementById('visualizerCanvas');
+        const canvasCtx = canvas.getContext('2d');
+        const dropZone = document.getElementById('dropZone');
+
+        // Paneles de Lista
+        const artistListContainer = document.getElementById('artistListContainer');
+        const artistTracksContainer = document.getElementById('artistTracksContainer');
+        const queueContainer = document.getElementById('queueContainer');
+        const artistCount = document.getElementById('artistCount');
+        const selectedArtistTitle = document.getElementById('selectedArtistTitle');
+        const btnAddArtistTracks = document.getElementById('btnAddArtistTracks');
+        const queueCount = document.getElementById('queueCount');
+
+        // Telemetría
+        const telSampleRate = document.getElementById('telSampleRate');
+        const telBitrate = document.getElementById('telBitrate');
+        const telBpm = document.getElementById('telBpm');
+
+        function initWebAudio() {
+            if (audioCtx) {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                return;
+            }
+
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+
+            gainNode = audioCtx.createGain();
+            gainNode.gain.value = volumeSlider.value;
+
+            audioSource = audioCtx.createMediaElementSource(audioElement);
+
+            const frequencies = [60, 230, 910, 4000, 14000];
+            eqNodes = frequencies.map((freq, index) => {
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = index === 0 ? 'lowshelf' : (index === frequencies.length - 1 ? 'highshelf' : 'peaking');
+                filter.frequency.value = freq;
+                filter.gain.value = 0;
+                return filter;
+            });
+
+            let lastNode = audioSource;
+            eqNodes.forEach(filter => {
+                lastNode.connect(filter);
+                lastNode = filter;
+            });
+
+            lastNode.connect(gainNode);
+            gainNode.connect(analyser);
+            analyser.connect(audioCtx.destination);
+        }
+
+        // Forzar reactivación del contexto para Linux Mint / Chrome
+        window.addEventListener('click', () => {
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        });
+
+        function playLcarsBeep(type = 'standard') {
+            try {
+                if (!audioCtx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    audioCtx = new AudioContext();
+                }
+
+                const osc = audioCtx.createOscillator();
+                const beepGain = audioCtx.createGain();
+                osc.connect(beepGain);
+                beepGain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'standard') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1240, now);
+                    osc.frequency.exponentialRampToValueAtTime(1760, now + 0.06);
+                    beepGain.gain.setValueAtTime(0.1, now);
+                    beepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'alert') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(480, now);
+                    osc.frequency.linearRampToValueAtTime(840, now + 0.28);
+                    beepGain.gain.setValueAtTime(0.2, now);
+                    beepGain.gain.linearRampToValueAtTime(0.001, now + 0.32);
+                    osc.start(now);
+                    osc.stop(now + 0.32);
+                } else if (type === 'click') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(950, now);
+                    beepGain.gain.setValueAtTime(0.06, now);
+                    beepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+                    osc.start(now);
+                    osc.stop(now + 0.04);
+                }
+            } catch (e) {}
+        }
+
+        // Procesar archivos cargados y extraer Artistas/Canciones
+        function parseAndStoreFiles(files) {
+            initWebAudio();
+            playLcarsBeep('standard');
+
+            const validFiles = Array.from(files).filter(f => f.type.startsWith('audio/'));
+            if (validFiles.length === 0) return;
+
+            validFiles.forEach(file => {
+                const cleanName = file.name.replace(/\.[^/.]+$/, "");
+                let artist = "Desconocido";
+                let title = cleanName;
+
+                if (cleanName.includes('-')) {
+                    const parts = cleanName.split('-');
+                    artist = parts[0].trim();
+                    title = parts.slice(1).join('-').trim();
+                }
+
+                const trackObj = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    title: title,
+                    artist: artist,
+                    file: file,
+                    url: URL.createObjectURL(file)
+                };
+
+                masterLibrary.push(trackObj);
+            });
+
+            rebuildArtistDatabase();
+        }
+
+        function rebuildArtistDatabase() {
+            artistMap = {};
+
+            masterLibrary.forEach(track => {
+                const art = track.artist || "Desconocido";
+                if (!artistMap[art]) artistMap[art] = [];
+                artistMap[art].push(track);
+            });
+
+            Object.keys(artistMap).forEach(art => {
+                artistMap[art].sort((a, b) => a.title.localeCompare(b.title));
+            });
+
+            renderArtistList();
+        }
+
+        function renderArtistList() {
+            artistListContainer.innerHTML = '';
+            const sortedArtists = Object.keys(artistMap).sort((a, b) => a.localeCompare(b));
+            artistCount.innerText = `${sortedArtists.length} ARTISTAS`;
+
+            if (sortedArtists.length === 0) {
+                artistListContainer.innerHTML = `<div class="text-center py-3 text-[10px] font-mono text-gray-500">SIN DATOS DE ARTISTA</div>`;
+                return;
+            }
+
+            sortedArtists.forEach(artName => {
+                const item = document.createElement('div');
+                item.className = `p-1.5 text-[11px] font-mono rounded cursor-pointer flex justify-between items-center transition ${
+                    selectedArtistName === artName ? 'bg-lcars-amber text-black font-bold' : 'bg-black text-lcars-amber hover:bg-lcars-amber/20 border border-lcars-amber/20'
+                }`;
+
+                item.innerHTML = `
+                    <span class="truncate mr-1"><i class="fa-solid fa-user-astronaut text-[9px] mr-1"></i>${artName}</span>
+                    <span class="text-[9px] opacity-75 shrink-0 font-bold">${artistMap[artName].length}</span>
+                `;
+
+                item.addEventListener('click', () => {
+                    playLcarsBeep('click');
+                    selectArtist(artName);
+                });
+
+                artistListContainer.appendChild(item);
+            });
+        }
+
+        function selectArtist(artName) {
+            selectedArtistName = artName;
+            renderArtistList();
+
+            selectedArtistTitle.innerText = artName.toUpperCase();
+            btnAddArtistTracks.classList.remove('hidden');
+
+            const tracks = artistMap[artName] || [];
+            artistTracksContainer.innerHTML = '';
+
+            tracks.forEach(track => {
+                const item = document.createElement('div');
+                item.className = "p-1.5 text-[11px] font-mono bg-black text-lcars-blue hover:bg-lcars-blue/20 border border-lcars-blue/30 rounded cursor-pointer flex justify-between items-center transition";
+                
+                item.innerHTML = `
+                    <span class="truncate mr-1"><i class="fa-solid fa-music text-[9px] mr-1"></i>${track.title}</span>
+                    <button class="text-[9px] bg-lcars-blue text-black px-1 rounded font-bold hover:bg-white shrink-0">+ COLA</button>
+                `;
+
+                item.addEventListener('click', () => {
+                    playLcarsBeep('click');
+                    addToQueue(track);
+                });
+
+                artistTracksContainer.appendChild(item);
+            });
+        }
+
+        btnAddArtistTracks.addEventListener('click', () => {
+            if (!selectedArtistName || !artistMap[selectedArtistName]) return;
+            playLcarsBeep('standard');
+            artistMap[selectedArtistName].forEach(track => addToQueue(track));
+        });
+
+        function addToQueue(track) {
+            currentQueue.push(track);
+            renderQueue();
+
+            if (currentQueue.length === 1 && !isPlaying && !isSynthPlaying) {
+                playQueueTrack(0);
+            }
+        }
+
+        function removeFromQueue(index, event) {
+            event.stopPropagation();
+            playLcarsBeep('click');
+
+            if (index === currentQueueIndex) {
+                audioElement.pause();
+                isPlaying = false;
+                updatePlayButtonUI();
+            }
+
+            currentQueue.splice(index, 1);
+            if (currentQueueIndex >= index && currentQueueIndex > 0) {
+                currentQueueIndex--;
+            }
+
+            renderQueue();
+        }
+
+        function renderQueue() {
+            queueContainer.innerHTML = '';
+            queueCount.innerText = `${currentQueue.length} EN COLA`;
+
+            if (currentQueue.length === 0) {
+                queueContainer.innerHTML = `<div class="text-center py-3 text-[10px] font-mono text-gray-500">COLA VACÍA</div>`;
+                return;
+            }
+
+            currentQueue.forEach((track, idx) => {
+                const item = document.createElement('div');
+                item.className = `p-1.5 text-[11px] font-mono rounded cursor-pointer flex justify-between items-center transition ${
+                    idx === currentQueueIndex ? 'bg-lcars-orange text-black font-bold' : 'bg-black text-lcars-orange hover:bg-lcars-orange/30 border border-lcars-orange/30'
+                }`;
+
+                item.innerHTML = `
+                    <div class="truncate mr-1 flex items-center gap-1">
+                        <span class="text-[9px]">${idx === currentQueueIndex ? '<i class="fa-solid fa-volume-high"></i>' : (idx + 1)}</span>
+                        <span class="truncate">${track.title}</span>
+                    </div>
+                    <button class="text-[9px] text-red-400 hover:text-white px-1 shrink-0" onclick="removeFromQueue(${idx}, event)">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                `;
+
+                item.addEventListener('click', () => {
+                    playLcarsBeep('click');
+                    playQueueTrack(idx);
+                });
+
+                queueContainer.appendChild(item);
+            });
+        }
+
+        function playQueueTrack(index) {
+            if (index < 0 || index >= currentQueue.length) return;
+
+            if (isSynthPlaying) stopSynthStream();
+
+            currentQueueIndex = index;
+            const track = currentQueue[index];
+
+            audioElement.src = track.url;
+            audioElement.play();
+            isPlaying = true;
+
+            trackTitle.innerText = track.title.toUpperCase();
+            trackArtist.innerText = track.artist.toUpperCase();
+
+            telSampleRate.innerText = `${(Math.random() > 0.5 ? 44.1 : 48.0).toFixed(1)} kHz`;
+            telBitrate.innerText = `${[192, 256, 320][Math.floor(Math.random() * 3)]} kbps`;
+            telBpm.innerText = `${Math.floor(90 + Math.random() * 50)} BPM`;
+
+            updatePlayButtonUI();
+            renderQueue();
+        }
+
+        function togglePlay() {
+            initWebAudio();
+            playLcarsBeep('standard');
+
+            if (currentQueue.length === 0 && !isSynthPlaying) {
+                toggleWarpSynthStream();
+                return;
+            }
+
+            if (isPlaying) {
+                audioElement.pause();
+                isPlaying = false;
+            } else {
+                if (isSynthPlaying) stopSynthStream();
+                audioElement.play();
+                isPlaying = true;
+            }
+            updatePlayButtonUI();
+        }
+
+        function updatePlayButtonUI() {
+            if (isPlaying) {
+                playIcon.className = "fa-solid fa-pause mr-1";
+                playBtnText.innerText = "PAUSAR";
+            } else {
+                playIcon.className = "fa-solid fa-play mr-1";
+                playBtnText.innerText = "REPRODUCIR";
+            }
+        }
+
+        function toggleWarpSynthStream() {
+            initWebAudio();
+            playLcarsBeep('standard');
+
+            if (isSynthPlaying) {
+                stopSynthStream();
+                return;
+            }
+
+            if (isPlaying) {
+                audioElement.pause();
+                isPlaying = false;
+                updatePlayButtonUI();
+            }
+
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 60;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 200;
+
+            osc.connect(filter);
+            filter.connect(gainNode);
+
+            osc.start();
+            synthOscillator = osc;
+            isSynthPlaying = true;
+
+            trackTitle.innerText = "SINTETIZADOR DEL NÚCLEO DE CURVATURA";
+            trackArtist.innerText = "Modulación Activa de Plasma Subespacial";
+            btnSynthDemo.classList.add('animate-pulse', 'bg-lcars-amber');
+        }
+
+        function stopSynthStream() {
+            if (synthOscillator) {
+                synthOscillator.stop();
+                synthOscillator.disconnect();
+                synthOscillator = null;
+            }
+            isSynthPlaying = false;
+            btnSynthDemo.classList.remove('animate-pulse', 'bg-lcars-amber');
+            trackTitle.innerText = currentQueue.length > 0 ? currentQueue[currentQueueIndex]?.title : "SIN ARCHIVO DE AUDIO CARGADO";
+            trackArtist.innerText = currentQueue.length > 0 ? currentQueue[currentQueueIndex]?.artist : "Selecciona archivos MP3/WAV";
+        }
+
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "00:00";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function toggleRedAlert() {
+            isRedAlert = !isRedAlert;
+            playLcarsBeep('alert');
+
+            const container = document.getElementById('lcarsContainer');
+            const topCorner = document.getElementById('lcarsTopCorner');
+            const subBlock1 = document.getElementById('lcarsSubBlock1');
+            const sideHeader = document.getElementById('lcarsSideHeader');
+            const sideFooter = document.getElementById('lcarsSideFooter');
+
+            if (isRedAlert) {
+                document.body.classList.add('red-alert-theme');
+                container.classList.add('border-lcars-redbright');
+                container.classList.remove('border-lcars-orange');
+                topCorner.className = "w-28 h-9 bg-lcars-redbright rounded-tl-3xl rounded-bl-sm flex items-center justify-end pr-3 transition-colors duration-500";
+                subBlock1.className = "w-8 h-3 bg-red-800 self-start ml-2 mt-1 rounded-sm transition-colors duration-500";
+                sideHeader.className = "bg-lcars-redbright text-black p-2 rounded-tl-2xl rounded-tr-md font-extrabold text-xs flex justify-between items-center transition-colors duration-500";
+                sideFooter.className = "h-4 bg-lcars-redbright rounded-bl-2xl rounded-br-md transition-colors duration-500";
+
+                redAlertOverlay.classList.remove('opacity-0');
+                redAlertOverlay.classList.add('red-alert-active');
+                btnRedAlert.classList.replace('bg-lcars-red', 'bg-red-500');
+                redAlertText.innerText = "CONDICIÓN ROJA";
+            } else {
+                document.body.classList.remove('red-alert-theme');
+                container.classList.remove('border-lcars-redbright');
+                container.classList.add('border-lcars-orange');
+                topCorner.className = "w-28 h-9 bg-lcars-orange rounded-tl-3xl rounded-bl-sm flex items-center justify-end pr-3 transition-colors duration-500";
+                subBlock1.className = "w-8 h-3 bg-lcars-amber self-start ml-2 mt-1 rounded-sm transition-colors duration-500";
+                sideHeader.className = "bg-lcars-orange text-black p-2 rounded-tl-2xl rounded-tr-md font-extrabold text-xs flex justify-between items-center transition-colors duration-500";
+                sideFooter.className = "h-4 bg-lcars-amber rounded-bl-2xl rounded-br-md transition-colors duration-500";
+
+                redAlertOverlay.classList.add('opacity-0');
+                redAlertOverlay.classList.remove('red-alert-active');
+                btnRedAlert.classList.replace('bg-red-500', 'bg-lcars-red');
+                redAlertText.innerText = "ALERTA ROJA";
+            }
+        }
+
+        function bindEqControls() {
+            const bands = [
+                { id: 'eq60', nodeIndex: 0, valLabel: 'val60' },
+                { id: 'eq230', nodeIndex: 1, valLabel: 'val230' },
+                { id: 'eq910', nodeIndex: 2, valLabel: 'val910' },
+                { id: 'eq4k', nodeIndex: 3, valLabel: 'val4k' },
+                { id: 'eq14k', nodeIndex: 4, valLabel: 'val14k' }
+            ];
+
+            bands.forEach(b => {
+                const slider = document.getElementById(b.id);
+                const label = document.getElementById(b.valLabel);
+                slider.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    label.innerText = `${val > 0 ? '+' : ''}${val}dB`;
+                    if (eqNodes[b.nodeIndex]) {
+                        eqNodes[b.nodeIndex].gain.value = val;
+                    }
+                });
+            });
+
+            eqPresets.addEventListener('change', (e) => {
+                playLcarsBeep('click');
+                const presetMap = {
+                    flat: [0, 0, 0, 0, 0],
+                    warp: [8, 5, -2, 4, 6],
+                    holodeck: [3, 2, 5, 2, -1],
+                    borg: [-4, 6, -2, 8, -5],
+                    bassBoost: [10, 7, 1, -2, -4]
+                };
+
+                const vals = presetMap[e.target.value] || [0, 0, 0, 0, 0];
+                bands.forEach((b, idx) => {
+                    const slider = document.getElementById(b.id);
+                    const label = document.getElementById(b.valLabel);
+                    slider.value = vals[idx];
+                    label.innerText = `${vals[idx] > 0 ? '+' : ''}${vals[idx]}dB`;
+                    if (eqNodes[b.nodeIndex]) {
+                        eqNodes[b.nodeIndex].gain.value = vals[idx];
+                    }
+                });
+            });
+        }
+
+        function renderVisualizer() {
+            requestAnimationFrame(renderVisualizer);
+
+            const width = canvas.width = canvas.clientWidth;
+            const height = canvas.height = canvas.clientHeight;
+
+            canvasCtx.fillStyle = '#000000';
+            canvasCtx.fillRect(0, 0, width, height);
+
+            if (!analyser) {
+                canvasCtx.strokeStyle = '#221100';
+                canvasCtx.lineWidth = 1;
+                for (let x = 0; x < width; x += 30) {
+                    canvasCtx.beginPath();
+                    canvasCtx.moveTo(x, 0);
+                    canvasCtx.lineTo(x, height);
+                    canvasCtx.stroke();
+                }
+                return;
+            }
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            if (visualizerMode === 0) {
+                analyser.getByteFrequencyData(dataArray);
+                const barWidth = (width / bufferLength) * 2.5;
+                let x = 0;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = (dataArray[i] / 255) * height;
+                    let color = isRedAlert ? '#ff0000' : (i < bufferLength * 0.3 ? '#ff9900' : (i < bufferLength * 0.7 ? '#ffcc00' : '#9999ff'));
+
+                    canvasCtx.fillStyle = color;
+                    canvasCtx.fillRect(x, height - barHeight, barWidth - 2, barHeight);
+                    x += barWidth;
+                }
+            } else if (visualizerMode === 1) {
+                analyser.getByteTimeDomainData(dataArray);
+                canvasCtx.lineWidth = 2;
+                canvasCtx.strokeStyle = isRedAlert ? '#ff0000' : '#ffcc00';
+                canvasCtx.beginPath();
+
+                const sliceWidth = width * 1.0 / bufferLength;
+                let x = 0;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const v = dataArray[i] / 128.0;
+                    const y = v * height / 2;
+                    if (i === 0) canvasCtx.moveTo(x, y);
+                    else canvasCtx.lineTo(x, y);
+                    x += sliceWidth;
+                }
+                canvasCtx.lineTo(canvas.width, canvas.height / 2);
+                canvasCtx.stroke();
+            } else if (visualizerMode === 2) {
+                analyser.getByteFrequencyData(dataArray);
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const radius = Math.min(centerX, centerY) * 0.35;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = (dataArray[i] / 255) * 60;
+                    const rads = (Math.PI * 2 / bufferLength) * i;
+
+                    const x1 = centerX + Math.cos(rads) * radius;
+                    const y1 = centerY + Math.sin(rads) * radius;
+                    const x2 = centerX + Math.cos(rads) * (radius + barHeight);
+                    const y2 = centerY + Math.sin(rads) * (radius + barHeight);
+
+                    canvasCtx.strokeStyle = isRedAlert ? '#ff0000' : (i % 2 === 0 ? '#ff9900' : '#cc99cc');
+                    canvasCtx.lineWidth = 2;
+                    canvasCtx.beginPath();
+                    canvasCtx.moveTo(x1, y1);
+                    canvasCtx.lineTo(x2, y2);
+                    canvasCtx.stroke();
+                }
+            }
+        }
+
+        function setupEventListeners() {
+            audioElement.addEventListener('timeupdate', () => {
+                if (audioElement.duration) {
+                    const progress = (audioElement.currentTime / audioElement.duration) * 100;
+                    progressBar.style.width = `${progress}%`;
+                    currTimeDisp.innerText = formatTime(audioElement.currentTime);
+                    totalTimeDisp.innerText = formatTime(audioElement.duration);
+                    timeDisplay.innerText = `${formatTime(audioElement.currentTime)} / ${formatTime(audioElement.duration)}`;
+                }
+            });
+
+            audioElement.addEventListener('ended', () => {
+                if (isLoop) {
+                    playQueueTrack(currentQueueIndex);
+                } else if (isShuffle && currentQueue.length > 1) {
+                    const nextRand = Math.floor(Math.random() * currentQueue.length);
+                    playQueueTrack(nextRand);
+                } else if (currentQueueIndex < currentQueue.length - 1) {
+                    playQueueTrack(currentQueueIndex + 1);
+                } else {
+                    isPlaying = false;
+                    updatePlayButtonUI();
+                }
+            });
+
+            progressBarContainer.addEventListener('click', (e) => {
+                if (!audioElement.duration) return;
+                const rect = progressBarContainer.getBoundingClientRect();
+                const pos = (e.clientX - rect.left) / rect.width;
+                audioElement.currentTime = pos * audioElement.duration;
+            });
+
+            btnPlay.addEventListener('click', togglePlay);
+            btnStop.addEventListener('click', () => {
+                playLcarsBeep('click');
+                if (isSynthPlaying) stopSynthStream();
+                audioElement.pause();
+                audioElement.currentTime = 0;
+                isPlaying = false;
+                updatePlayButtonUI();
+            });
+
+            btnNext.addEventListener('click', () => {
+                playLcarsBeep('click');
+                if (currentQueue.length > 0) {
+                    playQueueTrack((currentQueueIndex + 1) % currentQueue.length);
+                }
+            });
+
+            btnPrev.addEventListener('click', () => {
+                playLcarsBeep('click');
+                if (currentQueue.length > 0) {
+                    playQueueTrack((currentQueueIndex - 1 + currentQueue.length) % currentQueue.length);
+                }
+            });
+
+            btnShuffle.addEventListener('click', () => {
+                isShuffle = !isShuffle;
+                playLcarsBeep('click');
+                btnShuffle.classList.toggle('active', isShuffle);
+            });
+
+            btnLoop.addEventListener('click', () => {
+                isLoop = !isLoop;
+                playLcarsBeep('click');
+                btnLoop.classList.toggle('active', isLoop);
+            });
+
+            volumeSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                audioElement.volume = val;
+                if (gainNode) gainNode.gain.value = val;
+                volVal.innerText = `${Math.round(val * 100)}%`;
+                muteIcon.className = val === 0 ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high";
+            });
+
+            btnMute.addEventListener('click', () => {
+                playLcarsBeep('click');
+                audioElement.muted = !audioElement.muted;
+                muteIcon.className = audioElement.muted ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high";
+            });
+
+            btnLoadFiles.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => parseAndStoreFiles(e.target.files));
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-lcars-orange', 'bg-lcars-orange/10');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-lcars-orange', 'bg-lcars-orange/10');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-lcars-orange', 'bg-lcars-orange/10');
+                if (e.dataTransfer.files) parseAndStoreFiles(e.dataTransfer.files);
+            });
+
+            btnRedAlert.addEventListener('click', toggleRedAlert);
+
+            btnEqToggle.addEventListener('click', () => {
+                playLcarsBeep('standard');
+                eqPanel.classList.remove('translate-y-full', 'opacity-0', 'pointer-events-none');
+            });
+
+            btnCloseEq.addEventListener('click', () => {
+                playLcarsBeep('click');
+                eqPanel.classList.add('translate-y-full', 'opacity-0', 'pointer-events-none');
+            });
+
+            btnSynthDemo.addEventListener('click', toggleWarpSynthStream);
+
+            btnVisualMode.addEventListener('click', () => {
+                playLcarsBeep('click');
+                visualizerMode = (visualizerMode + 1) % 3;
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    togglePlay();
+                } else if (e.code === 'ArrowRight') {
+                    if (currentQueue.length > 0) playQueueTrack((currentQueueIndex + 1) % currentQueue.length);
+                } else if (e.code === 'ArrowLeft') {
+                    if (currentQueue.length > 0) playQueueTrack((currentQueueIndex - 1 + currentQueue.length) % currentQueue.length);
+                } else if (e.code === 'ArrowUp') {
+                    e.preventDefault();
+                    volumeSlider.value = Math.min(1, parseFloat(volumeSlider.value) + 0.05);
+                    volumeSlider.dispatchEvent(new Event('input'));
+                } else if (e.code === 'ArrowDown') {
+                    e.preventDefault();
+                    volumeSlider.value = Math.max(0, parseFloat(volumeSlider.value) - 0.05);
+                    volumeSlider.dispatchEvent(new Event('input'));
+                } else if (e.code === 'KeyR') {
+                    toggleRedAlert();
+                }
+            });
+        }
+
+        window.onload = function() {
+            bindEqControls();
+            setupEventListeners();
+            renderVisualizer();
+
+            setInterval(() => {
+                const sd = (99820 + (Date.now() % 100000) / 1000).toFixed(1);
+                document.getElementById('stardateVal').innerText = sd;
+            }, 2000);
+        };
+    </script>
+</body>
+</html>
